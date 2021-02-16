@@ -1,13 +1,35 @@
 // gcc -x c -g -framework OpenCL grayscale_opencl.c -o grayscale_opencl
+// gcc -x c -g grayscale_opencl.c -o grayscale_opencl -lOpenCL -lm
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-#include <OpenCL/cl.h>
+// #include <OpenCL/cl.h>
+#include <CL/cl.h>
 #include "grayscale.h"
 
 #define CREATOR "ParallelProgrammer"
 #define RGB_COMPONENT_COLOR 255
+
+#define CL_CHECK(_expr)                                                         \
+  do {                                                                          \
+    cl_int _err = _expr;                                                        \
+    if (_err == CL_SUCCESS)                                                     \
+      break;                                                                    \
+    fprintf(stderr, "OpenCL Error: '%s' returned %d!\n", #_expr, (int)_err);    \
+    exit(1); /* abort(); */                                                     \
+  } while (0)
+
+#define CL_CHECK_ERR(_expr)							\
+  ({										\
+     cl_int _err = CL_INVALID_VALUE;						\
+     typeof(_expr) _ret = _expr;						\
+     if (_err != CL_SUCCESS) {                                                  \
+       fprintf(stderr, "OpenCL Error: '%s' returned %d!\n", #_expr, (int)_err); \
+       exit(1); /* abort(); */                                                  \
+     }                                                                          \
+     _ret;                                                                      \
+  })
 
 static PPMImage *readPPM(const char *filename) {
      char buff[16];
@@ -124,10 +146,12 @@ void changeColorPPM(PPMImage *img) {
      cl_mem device_result;
 
      // OpenCL платформа
-     cl_platform_id cpPlatform;
+     cl_uint platforms_n = 0;
+     cl_platform_id platforms[100];
+     clGetPlatformIDs(100, platforms, &platforms_n);
 
      // Масив с устройства
-     cl_device_id device_id[2];
+     cl_device_id device_id[100];
      cl_context context;
 
      // Опашката на централния процесор
@@ -155,21 +179,22 @@ void changeColorPPM(PPMImage *img) {
      globalSize = ceil(n/(float)localSize)*localSize;
      
      // списък на наличните платформи
-     err = clGetPlatformIDs(1, &cpPlatform, NULL);
+     // cl_int num_platforms;
+     // err = clGetPlatformIDs(2, cpPlatform, &num_platforms);
      
      // брой налични устройства
      cl_uint num_devices_returned;
 
      // задаване на 
-     err = clGetDeviceIDs(cpPlatform, CL_DEVICE_TYPE_GPU, 1, &device_id[0], &num_devices_returned);
-     err = clGetDeviceIDs(cpPlatform, CL_DEVICE_TYPE_CPU, 1, &device_id[1], &num_devices_returned);
+     err = clGetDeviceIDs(platforms[0], CL_DEVICE_TYPE_CPU, 100, device_id, &num_devices_returned);
+     // err = clGetDeviceIDs(cpPlatform, CL_DEVICE_TYPE_CPU, 1, &device_id[1], &num_devices_returned);
      
      // създаване на контекст  
-     context = clCreateContext(0, 2, device_id, NULL, NULL, &err);
+     context = clCreateContext(0, 1, &device_id[0], NULL, NULL, &err);
      
      // създаване на опашки 
      gpu_queue = clCreateCommandQueue(context, device_id[0], 0, &err);
-     cpu_queue = clCreateCommandQueue(context, device_id[1], 0, &err);
+     // cpu_queue = clCreateCommandQueue(context, device_id[1], 0, &err);
      
      // четене на kernel функцията от външен файл
      FILE *program_handle;
@@ -197,7 +222,7 @@ void changeColorPPM(PPMImage *img) {
      if (err) {
           char log[10240] = "";
           err = clGetProgramBuildInfo(program, device_id[0], CL_PROGRAM_BUILD_LOG, sizeof(log), log, NULL);
-          printf("Program build log:\n%s\n", &log);
+          printf("Program build log:\n%s\n", log);
      }
      
      // създаване на изчисляващата kernel функция в програмата, която ще се изпълни
@@ -250,8 +275,7 @@ void printSystemInfo() {
      printf("  DEVICE_NAME = %s\n", buffer);
      cl_device_id devices[100];
 	cl_uint devices_n = 0;
-	// CL_CHECK(clGetDeviceIDs(NULL, CL_DEVICE_TYPE_ALL, 100, devices, &devices_n));
-	clGetDeviceIDs(platforms[0], CL_DEVICE_TYPE_GPU, 100, devices, &devices_n);
+	CL_CHECK(clGetDeviceIDs(platforms[0], CL_DEVICE_TYPE_ALL, 100, devices, &devices_n));
 
 	printf("=== %d OpenCL device(s) found on platform:\n", platforms_n);
 	for (int i=0; i<devices_n; i++){

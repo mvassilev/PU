@@ -118,42 +118,94 @@ void writePPM(const char *filename, PPMImage *img) {
 }
 
 // kernel функция
-__global__ void grayscale(int n, PPMPixel *c) {
-  int id = blockIdx.x*blockDim.x + threadIdx.x;
-  if (id < n) {
-    double f = 1;
-    double l = 0.3 * c[id].red + 0.6 * c[id].green + 0.1 * c[id].blue;
-    c[id].red = c[id].red + f * (l - c[id].red);
-    c[id].green = c[id].green + f * (l - c[id].green);
-    c[id].blue = c[id].blue + f * (l - c[id].blue);
-  }
+__global__ void grayscale(int n, PPMPixel *x, PPMPixel *y) {
+     int id = blockIdx.x*blockDim.x + threadIdx.x;
+     if (id < n) {
+          double f = 1;
+          double l = 0.3 * x[id].red + 0.6 * x[id].green + 0.1 * x[id].blue;
+          y[id].red = x[id].red + f * (l - x[id].red);
+          y[id].green = x[id].green + f * (l - x[id].green);
+          y[id].blue = x[id].blue + f * (l - x[id].blue);
+     }
 }
 
 void changeColorPPM(PPMImage *img) {
+     cudaError_t error;
+
      int N = img->x * img->y;
-     PPMPixel *x, *d_x;
+     PPMPixel *x, *d_x, *y, *d_y;
      x = (PPMPixel*)malloc(N*sizeof(PPMPixel));
+     y = (PPMPixel*)malloc(N*sizeof(PPMPixel));
 
-     // заделяне на памет в устройството
-     cudaMalloc(&d_x, N*sizeof(PPMPixel)); 
+     cudaMalloc(&d_x, N*sizeof(PPMPixel));
+     cudaMalloc(&d_y, N*sizeof(PPMPixel));
 
-     // копиране на данните за пикселите в x, която ще се предаде на устройството
      for (int i = 0; i < N; i++) {
           x[i] = img->data[i];
+          y[i] = img->data[i];
      }
 
-     // изпращане на данните в устройството
      cudaMemcpy(d_x, x, N*sizeof(PPMPixel), cudaMemcpyHostToDevice);
+     cudaMemcpy(d_y, y, N*sizeof(PPMPixel), cudaMemcpyHostToDevice);
+     
+     dim3 blockSize(4, 16, 1);
+     size_t gridCols = (img->x + blockSize.x - 1) / blockSize.x;
+     size_t gridRows = (img->y + blockSize.y - 1) / blockSize.y;
 
-     // изпълнение на изчисленията посредством 256 нишки
-     grayscale<<<(N+255)/256, 256>>>(N, d_x);
+     dim3 gridSize(gridCols, gridRows);
+     // in order to workL otherwise it fails silently
+     // grayscale<<<(N+1)/1, 1>>>(N, d_x, d_y);
+     grayscale<<<(N+255)/256, 256>>>(N, d_x, d_y);
+     printf("error: %s\n", cudaGetErrorString(cudaGetLastError()));
 
-     // копиране на данните от устройството обратно в хоста
-     cudaMemcpy(x, d_x, N*sizeof(PPMPixel), cudaMemcpyDeviceToHost);
 
-     // освобождаване на данни
+     cudaMemcpy(y, d_y, N*sizeof(PPMPixel), cudaMemcpyDeviceToHost);
+     printf("error: %s\n", cudaGetErrorString(cudaGetLastError()));
+
+     float sum = 0.0f;
+     for (int i = 0; i < N; i++) {
+          // printf("y[i].red: %d\n", y[i].red);
+          // printf("y[i].green: %d\n", y[i].green);
+          // printf("y[i].blue: %d\n", y[i].blue);
+          img->data[i] = y[i];
+     }
+     printf("error: %s\n", cudaGetErrorString(cudaGetLastError()));
+
      cudaFree(d_x);
+     cudaFree(d_y);
      free(x);
+     free(y);
+     // PPMPixel *x, *d_x;
+     // x = (PPMPixel*)malloc(N*sizeof(PPMPixel));
+
+     // // заделяне на памет в устройството
+     // cudaMalloc(&d_x, N*sizeof(PPMPixel)); 
+
+     // // копиране на данните за пикселите в x, която ще се предаде на устройството
+     // for (int i = 0; i < N; i++) {
+     //      x[i].red = img->data[i].red;
+     //      x[i].green = img->data[i].green;
+     //      x[i].blue = img->data[i].blue;
+     // }
+
+     // // изпращане на данните в устройството
+     // cudaMemcpy(d_x, x, N*sizeof(PPMPixel), cudaMemcpyHostToDevice);
+
+     // // изпълнение на изчисленията посредством 256 нишки
+     // grayscale<<<(N+255)/256, 256>>>(N, d_x);
+
+     // // копиране на данните от устройството обратно в хоста
+     // cudaMemcpy(x, d_x, N*sizeof(PPMPixel), cudaMemcpyDeviceToHost);
+
+     // for (int i = 0; i < N; i++) {
+     //      img->data[i].red = x[i].red;
+     //      img->data[i].green = x[i].green;
+     //      img->data[i].blue = x[i].blue;
+     // }
+
+     // // освобождаване на данни
+     // cudaFree(d_x);
+     // free(x);
 }
 
 int main(void) {
