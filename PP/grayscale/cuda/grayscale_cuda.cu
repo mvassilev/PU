@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/time.h>
 
 typedef struct {
      unsigned char red, green, blue;
@@ -131,6 +132,7 @@ __global__ void grayscale(int n, PPMPixel *x, PPMPixel *y) {
 
 void changeColorPPM(PPMImage *img) {
      cudaError_t error;
+     struct timeval tval_before, tval_after, tval_result;
 
      int N = img->x * img->y;
      PPMPixel *x, *d_x, *y, *d_y;
@@ -145,21 +147,35 @@ void changeColorPPM(PPMImage *img) {
           y[i] = img->data[i];
      }
 
+     gettimeofday(&tval_before, NULL);
      cudaMemcpy(d_x, x, N*sizeof(PPMPixel), cudaMemcpyHostToDevice);
      cudaMemcpy(d_y, y, N*sizeof(PPMPixel), cudaMemcpyHostToDevice);
+     gettimeofday(&tval_after, NULL);
+     // Измерване колко време отнема копирането на данните в устройството
+     timersub(&tval_after, &tval_before, &tval_result);
+     printf("%ld.%06ld секунди   за копиране на данните в устройството\n", (long int)tval_result.tv_sec, (long int)tval_result.tv_usec);
      
-     dim3 blockSize(4, 16, 1);
-     size_t gridCols = (img->x + blockSize.x - 1) / blockSize.x;
-     size_t gridRows = (img->y + blockSize.y - 1) / blockSize.y;
+     // dim3 blockSize(4, 16, 1);
+     // size_t gridCols = (img->x + blockSize.x - 1) / blockSize.x;
+     // size_t gridRows = (img->y + blockSize.y - 1) / blockSize.y;
 
-     dim3 gridSize(gridCols, gridRows);
+     // dim3 gridSize(gridCols, gridRows);
      // in order to workL otherwise it fails silently
      // grayscale<<<(N+1)/1, 1>>>(N, d_x, d_y);
+     gettimeofday(&tval_before, NULL);
      grayscale<<<(N+383)/384, 384>>>(N, d_x, d_y);
+     gettimeofday(&tval_after, NULL);
+     // Измерване колко време отнема изпънението на kernel функцията
+     timersub(&tval_after, &tval_before, &tval_result);
+     printf("%ld.%06ld   секунди за ззпълнението на kernel функцията\n", (long int)tval_result.tv_sec, (long int)tval_result.tv_usec);
      printf("error: %s\n", cudaGetErrorString(cudaGetLastError()));
 
-
+     gettimeofday(&tval_before, NULL);
      cudaMemcpy(y, d_y, N*sizeof(PPMPixel), cudaMemcpyDeviceToHost);
+     gettimeofday(&tval_after, NULL);
+     // Измерване колко време отнема копирането на данните в хоста
+     timersub(&tval_after, &tval_before, &tval_result);
+     printf("%ld.%06ld\n   секунди за копиране на данните в хоста", (long int)tval_result.tv_sec, (long int)tval_result.tv_usec);
      printf("error: %s\n", cudaGetErrorString(cudaGetLastError()));
 
      float sum = 0.0f;
