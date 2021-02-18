@@ -1,5 +1,6 @@
 // gcc -x c -g -framework OpenCL grayscale_opencl.c -o grayscale_opencl
 // gcc -x c -g grayscale_opencl.c -o grayscale_opencl -lOpenCL -lm
+// clinfo
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -11,6 +12,7 @@
 #define CREATOR "ParallelProgrammer"
 #define RGB_COMPONENT_COLOR 255
 
+// Проверка за грешки от OpenCL
 #define CL_CHECK(_expr)                                                         \
   do {                                                                          \
     cl_int _err = _expr;                                                        \
@@ -31,7 +33,7 @@
      _ret;                                                                      \
   })
 
-static PPMImage *readPPM(const char *filename) {
+static PPMImage *ReadPPM(const char *filename) {
      char buff[16];
      PPMImage *img;
      FILE *fp;
@@ -107,7 +109,7 @@ static PPMImage *readPPM(const char *filename) {
      fclose(fp);
      return img;
 }
-void writePPM(const char *filename, PPMImage *img) {
+void WritePPM(const char *filename, PPMImage *img) {
      FILE *fp;
      // отваряне на файл в режим за писане
      fp = fopen(filename, "wb");
@@ -133,7 +135,61 @@ void writePPM(const char *filename, PPMImage *img) {
      fclose(fp);
 }
 
-void changeColorPPM(PPMImage *img) {
+char *ReadKernelProgram() {
+     FILE *program_handle;
+     char *program_buffer, *program_log;
+     size_t program_size, log_size;
+     program_handle = fopen("grayscale_kernel.cl", "r");
+     if (program_handle == NULL) {
+          perror("Couldn't find the program file");
+          exit(1);
+     }
+
+     fseek(program_handle, 0, SEEK_END);
+     program_size = ftell(program_handle);
+     rewind(program_handle);
+     program_buffer = (char*)malloc(program_size + 1);
+     program_buffer[program_size] = '\0';
+     fread(program_buffer, sizeof(char), program_size, program_handle);
+     fclose(program_handle);
+
+     return program_buffer;
+}
+
+void PrintSystemInfo(cl_platform_id *platforms, cl_uint platforms_n) {
+     char buffer[10240];
+
+     cl_device_id devices[100];
+
+	printf("=== %d OpenCL platform(s) found:\n", platforms_n);
+     for (int i = 0; i < platforms_n; i++) {
+          cl_uint devices_n = 0;
+	     CL_CHECK(clGetDeviceIDs(platforms[i], CL_DEVICE_TYPE_ALL, 100, devices, &devices_n));
+
+          for (int j = 0; j < devices_n; j++){
+               char buffer[10240];
+               cl_uint buf_uint;
+               cl_ulong buf_ulong;
+               printf("  -- %d --\n", i);
+               clGetDeviceInfo(devices[j], CL_DEVICE_NAME, sizeof(buffer), buffer, NULL);
+               printf("  DEVICE_NAME = %s\n", buffer);
+               clGetDeviceInfo(devices[j], CL_DEVICE_VENDOR, sizeof(buffer), buffer, NULL);
+               printf("  DEVICE_VENDOR = %s\n", buffer);
+               clGetDeviceInfo(devices[j], CL_DEVICE_VERSION, sizeof(buffer), buffer, NULL);
+               printf("  DEVICE_VERSION = %s\n", buffer);
+               clGetDeviceInfo(devices[j], CL_DRIVER_VERSION, sizeof(buffer), buffer, NULL);
+               printf("  DRIVER_VERSION = %s\n", buffer);
+               clGetDeviceInfo(devices[j], CL_DEVICE_MAX_COMPUTE_UNITS, sizeof(buf_uint), &buf_uint, NULL);
+               printf("  DEVICE_MAX_COMPUTE_UNITS = %u\n", (unsigned int)buf_uint);
+               clGetDeviceInfo(devices[j], CL_DEVICE_MAX_CLOCK_FREQUENCY, sizeof(buf_uint), &buf_uint, NULL);
+               printf("  DEVICE_MAX_CLOCK_FREQUENCY = %u\n", (unsigned int)buf_uint);
+               clGetDeviceInfo(devices[j], CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(buf_ulong), &buf_ulong, NULL);
+               printf("  DEVICE_GLOBAL_MEM_SIZE = %llu\n", (unsigned long long)buf_ulong);
+          }
+     }
+}
+
+void ChangeColorPPM(PPMImage *img) {
      // размер на изображението
      unsigned int n = img->x * img->y;
 
@@ -149,9 +205,10 @@ void changeColorPPM(PPMImage *img) {
      cl_uint platforms_n = 0;
      cl_platform_id platforms[100];
      clGetPlatformIDs(100, platforms, &platforms_n);
+     PrintSystemInfo(platforms, platforms_n);
 
      // Масив с устройства
-     cl_device_id device_id[100];
+     cl_device_id devices[100];
      cl_context context;
 
      // Опашката на централния процесор
@@ -186,33 +243,18 @@ void changeColorPPM(PPMImage *img) {
      cl_uint num_devices_returned;
 
      // задаване на 
-     err = clGetDeviceIDs(platforms[0], CL_DEVICE_TYPE_CPU, 100, device_id, &num_devices_returned);
-     // err = clGetDeviceIDs(cpPlatform, CL_DEVICE_TYPE_CPU, 1, &device_id[1], &num_devices_returned);
+     err = clGetDeviceIDs(platforms[1], CL_DEVICE_TYPE_GPU, 100, devices, &num_devices_returned);
+     // err = clGetDeviceIDs(cpPlatform, CL_DEVICE_TYPE_CPU, 1, &devices[1], &num_devices_returned);
      
      // създаване на контекст  
-     context = clCreateContext(0, 1, &device_id[0], NULL, NULL, &err);
+     context = clCreateContext(0, 1, &devices[0], NULL, NULL, &err);
      
      // създаване на опашки 
-     gpu_queue = clCreateCommandQueue(context, device_id[0], 0, &err);
-     // cpu_queue = clCreateCommandQueue(context, device_id[1], 0, &err);
+     gpu_queue = clCreateCommandQueue(context, devices[0], 0, &err);
+     // cpu_queue = clCreateCommandQueue(context, devices[1], 0, &err);
      
      // четене на kernel функцията от външен файл
-     FILE *program_handle;
-     char *program_buffer, *program_log;
-     size_t program_size, log_size;
-     program_handle = fopen("grayscale_kernel.cl", "r");
-     if (program_handle == NULL) {
-          perror("Couldn't find the program file");
-          exit(1);
-     }
-
-     fseek(program_handle, 0, SEEK_END);
-     program_size = ftell(program_handle);
-     rewind(program_handle);
-     program_buffer = (char*)malloc(program_size + 1);
-     program_buffer[program_size] = '\0';
-     fread(program_buffer, sizeof(char), program_size, program_handle);
-     fclose(program_handle);
+     char *program_buffer = ReadKernelProgram();
 
      // създаване на програма на базата на прочетената kernel функция
      program = clCreateProgramWithSource(context, 1, (const char **) & program_buffer, NULL, &err);
@@ -221,7 +263,7 @@ void changeColorPPM(PPMImage *img) {
      err = clBuildProgram(program, 0, NULL, NULL, NULL, NULL);
      if (err) {
           char log[10240] = "";
-          err = clGetProgramBuildInfo(program, device_id[0], CL_PROGRAM_BUILD_LOG, sizeof(log), log, NULL);
+          err = clGetProgramBuildInfo(program, devices[0], CL_PROGRAM_BUILD_LOG, sizeof(log), log, NULL);
           printf("Program build log:\n%s\n", log);
      }
      
@@ -265,46 +307,10 @@ void changeColorPPM(PPMImage *img) {
     free(host_result);
 }
 
-void printSystemInfo() {
-     char buffer[10240];
-     cl_platform_id platforms[100];
-     cl_device_id device_id; 
-	cl_uint platforms_n = 0;
-     clGetPlatformIDs(100, platforms, &platforms_n);
-     clGetDeviceInfo(device_id, CL_DEVICE_NAME, sizeof(buffer), buffer, NULL);
-     printf("  DEVICE_NAME = %s\n", buffer);
-     cl_device_id devices[100];
-	cl_uint devices_n = 0;
-	CL_CHECK(clGetDeviceIDs(platforms[0], CL_DEVICE_TYPE_ALL, 100, devices, &devices_n));
-
-	printf("=== %d OpenCL device(s) found on platform:\n", platforms_n);
-	for (int i=0; i<devices_n; i++){
-		char buffer[10240];
-		cl_uint buf_uint;
-		cl_ulong buf_ulong;
-		printf("  -- %d --\n", i);
-		clGetDeviceInfo(devices[i], CL_DEVICE_NAME, sizeof(buffer), buffer, NULL);
-		printf("  DEVICE_NAME = %s\n", buffer);
-		clGetDeviceInfo(devices[i], CL_DEVICE_VENDOR, sizeof(buffer), buffer, NULL);
-		printf("  DEVICE_VENDOR = %s\n", buffer);
-		clGetDeviceInfo(devices[i], CL_DEVICE_VERSION, sizeof(buffer), buffer, NULL);
-		printf("  DEVICE_VERSION = %s\n", buffer);
-		clGetDeviceInfo(devices[i], CL_DRIVER_VERSION, sizeof(buffer), buffer, NULL);
-		printf("  DRIVER_VERSION = %s\n", buffer);
-		clGetDeviceInfo(devices[i], CL_DEVICE_MAX_COMPUTE_UNITS, sizeof(buf_uint), &buf_uint, NULL);
-		printf("  DEVICE_MAX_COMPUTE_UNITS = %u\n", (unsigned int)buf_uint);
-		clGetDeviceInfo(devices[i], CL_DEVICE_MAX_CLOCK_FREQUENCY, sizeof(buf_uint), &buf_uint, NULL);
-		printf("  DEVICE_MAX_CLOCK_FREQUENCY = %u\n", (unsigned int)buf_uint);
-		clGetDeviceInfo(devices[i], CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(buf_ulong), &buf_ulong, NULL);
-		printf("  DEVICE_GLOBAL_MEM_SIZE = %llu\n", (unsigned long long)buf_ulong);
-	}
-}
-
 int main() {
-     printSystemInfo();
      PPMImage *image;
-     image = readPPM("image.ppm");
-     changeColorPPM(image);
-     writePPM("grayscale_opencl_result.ppm", image);
+     image = ReadPPM("image.ppm");
+     ChangeColorPPM(image);
+     WritePPM("grayscale_opencl_result.ppm", image);
 }
 
