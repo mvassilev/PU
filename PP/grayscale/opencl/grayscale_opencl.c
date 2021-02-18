@@ -5,8 +5,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-// #include <OpenCL/cl.h>
-#include <CL/cl.h>
+#ifdef __APPLE__
+     #include <OpenCL/cl.h>
+#else
+     #include <CL/cl.h>
+#endif
 #include "grayscale.h"
 
 #define CREATOR "ParallelProgrammer"
@@ -33,6 +36,7 @@
      _ret;                                                                      \
   })
 
+// четене на изображение от външен файл
 static PPMImage *ReadPPM(const char *filename) {
      char buff[16];
      PPMImage *img;
@@ -109,6 +113,8 @@ static PPMImage *ReadPPM(const char *filename) {
      fclose(fp);
      return img;
 }
+
+// запис на изображение във външен файл
 void WritePPM(const char *filename, PPMImage *img) {
      FILE *fp;
      // отваряне на файл в режим за писане
@@ -135,6 +141,7 @@ void WritePPM(const char *filename, PPMImage *img) {
      fclose(fp);
 }
 
+// четене на сорс кода на kernel функцията от външен файл
 char *ReadKernelProgram() {
      FILE *program_handle;
      char *program_buffer, *program_log;
@@ -156,6 +163,7 @@ char *ReadKernelProgram() {
      return program_buffer;
 }
 
+// информация за платформата и устройствата
 void PrintSystemInfo(cl_platform_id *platforms, cl_uint platforms_n) {
      char buffer[10240];
 
