@@ -131,7 +131,6 @@ __global__ void grayscale(int n, PPMPixel *x, PPMPixel *y) {
 }
 
 void changeColorPPM(PPMImage *img) {
-     cudaError_t error;
      struct timeval tval_before, tval_after, tval_result;
 
      int N = img->x * img->y;
@@ -142,10 +141,14 @@ void changeColorPPM(PPMImage *img) {
      cudaMalloc(&d_x, N*sizeof(PPMPixel));
      cudaMalloc(&d_y, N*sizeof(PPMPixel));
 
+     gettimeofday(&tval_before, NULL);
      for (int i = 0; i < N; i++) {
           x[i] = img->data[i];
           y[i] = img->data[i];
      }
+     gettimeofday(&tval_after, NULL);
+     timersub(&tval_after, &tval_before, &tval_result);
+     printf("  %ld.%06ld   секунди за инициализация на двата масива в хоста, които ще се копират в устройството\n", (long int)tval_result.tv_sec, (long int)tval_result.tv_usec);
 
      gettimeofday(&tval_before, NULL);
      cudaMemcpy(d_x, x, N*sizeof(PPMPixel), cudaMemcpyHostToDevice);
@@ -153,7 +156,7 @@ void changeColorPPM(PPMImage *img) {
      gettimeofday(&tval_after, NULL);
      // Измерване колко време отнема копирането на данните в устройството
      timersub(&tval_after, &tval_before, &tval_result);
-     printf("%ld.%06ld секунди   за копиране на данните в устройството\n", (long int)tval_result.tv_sec, (long int)tval_result.tv_usec);
+     printf("  %ld.%06ld   секунди за копиране на масивите в устройството\n", (long int)tval_result.tv_sec, (long int)tval_result.tv_usec);
      
      // dim3 blockSize(4, 16, 1);
      // size_t gridCols = (img->x + blockSize.x - 1) / blockSize.x;
@@ -167,25 +170,25 @@ void changeColorPPM(PPMImage *img) {
      gettimeofday(&tval_after, NULL);
      // Измерване колко време отнема изпънението на kernel функцията
      timersub(&tval_after, &tval_before, &tval_result);
-     printf("%ld.%06ld   секунди за ззпълнението на kernel функцията\n", (long int)tval_result.tv_sec, (long int)tval_result.tv_usec);
-     printf("error: %s\n", cudaGetErrorString(cudaGetLastError()));
+     printf("  %ld.%06ld   секунди за изпълнението на kernel функцията\n", (long int)tval_result.tv_sec, (long int)tval_result.tv_usec);
+     //printf("error: %s\n", cudaGetErrorString(cudaGetLastError()));
 
      gettimeofday(&tval_before, NULL);
      cudaMemcpy(y, d_y, N*sizeof(PPMPixel), cudaMemcpyDeviceToHost);
      gettimeofday(&tval_after, NULL);
      // Измерване колко време отнема копирането на данните в хоста
      timersub(&tval_after, &tval_before, &tval_result);
-     printf("%ld.%06ld\n   секунди за копиране на данните в хоста", (long int)tval_result.tv_sec, (long int)tval_result.tv_usec);
-     printf("error: %s\n", cudaGetErrorString(cudaGetLastError()));
+     printf("  %ld.%06ld   секунди за копиране на данните обратно в хоста\n", (long int)tval_result.tv_sec, (long int)tval_result.tv_usec);
+     //printf("error: %s\n", cudaGetErrorString(cudaGetLastError()));
 
-     float sum = 0.0f;
+     gettimeofday(&tval_before, NULL);
      for (int i = 0; i < N; i++) {
-          // printf("y[i].red: %d\n", y[i].red);
-          // printf("y[i].green: %d\n", y[i].green);
-          // printf("y[i].blue: %d\n", y[i].blue);
           img->data[i] = y[i];
      }
-     printf("error: %s\n", cudaGetErrorString(cudaGetLastError()));
+     gettimeofday(&tval_after, NULL);
+     timersub(&tval_after, &tval_before, &tval_result);
+     printf("  %ld.%06ld   секунди за копиране на данните обратно в масива с пикселите\n", (long int)tval_result.tv_sec, (long int)tval_result.tv_usec);
+     // printf("error: %s\n", cudaGetErrorString(cudaGetLastError()));
 
      cudaFree(d_x);
      cudaFree(d_y);
@@ -226,7 +229,19 @@ void changeColorPPM(PPMImage *img) {
 
 int main(void) {
   PPMImage *image;
+  struct timeval tval_before, tval_after, tval_result;
+
+  gettimeofday(&tval_before, NULL);
   image = readPPM("image.ppm");
+  gettimeofday(&tval_after, NULL);
+  timersub(&tval_after, &tval_before, &tval_result);
+  printf("%ld.%06ld     секунди за четене на данните от изображението\n", (long int)tval_result.tv_sec, (long int)tval_result.tv_usec);
+
   changeColorPPM(image);
+
+  gettimeofday(&tval_before, NULL);
   writePPM("grayscale_cuda_result.ppm", image);
+  gettimeofday(&tval_after, NULL);
+  timersub(&tval_after, &tval_before, &tval_result);
+  printf("%ld.%06ld     секунди за запис на данните в изображението\n", (long int)tval_result.tv_sec, (long int)tval_result.tv_usec);
 }
