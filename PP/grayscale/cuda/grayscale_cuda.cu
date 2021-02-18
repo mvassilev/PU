@@ -155,7 +155,7 @@ void changeColorPPM(PPMImage *img) {
      dim3 gridSize(gridCols, gridRows);
      // in order to workL otherwise it fails silently
      // grayscale<<<(N+1)/1, 1>>>(N, d_x, d_y);
-     grayscale<<<(N+255)/256, 256>>>(N, d_x, d_y);
+     grayscale<<<(N+383)/384, 384>>>(N, d_x, d_y);
      printf("error: %s\n", cudaGetErrorString(cudaGetLastError()));
 
 
