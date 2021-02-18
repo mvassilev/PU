@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <sys/time.h>
 #ifdef __APPLE__
      #include <OpenCL/cl.h>
 #else
@@ -173,31 +174,59 @@ void PrintSystemInfo(cl_platform_id *platforms, cl_uint platforms_n) {
      for (int i = 0; i < platforms_n; i++) {
           cl_uint devices_n = 0;
 	     CL_CHECK(clGetDeviceIDs(platforms[i], CL_DEVICE_TYPE_ALL, 100, devices, &devices_n));
+          clGetPlatformInfo(platforms[i], CL_PLATFORM_NAME, sizeof(buffer), buffer, NULL);
+          printf("  Platform ID: %d \n", i);
+          printf("    CL_PLATFORM_NAME = %s\n", buffer);
 
           for (int j = 0; j < devices_n; j++){
-               char buffer[10240];
+               
                cl_uint buf_uint;
                cl_ulong buf_ulong;
-               printf("  -- %d --\n", i);
+               printf("    Device ID: %d \n", j);
                clGetDeviceInfo(devices[j], CL_DEVICE_NAME, sizeof(buffer), buffer, NULL);
-               printf("  DEVICE_NAME = %s\n", buffer);
+               printf("      DEVICE_NAME = %s\n", buffer);
                clGetDeviceInfo(devices[j], CL_DEVICE_VENDOR, sizeof(buffer), buffer, NULL);
-               printf("  DEVICE_VENDOR = %s\n", buffer);
+               printf("      DEVICE_VENDOR = %s\n", buffer);
                clGetDeviceInfo(devices[j], CL_DEVICE_VERSION, sizeof(buffer), buffer, NULL);
-               printf("  DEVICE_VERSION = %s\n", buffer);
+               printf("      DEVICE_VERSION = %s\n", buffer);
                clGetDeviceInfo(devices[j], CL_DRIVER_VERSION, sizeof(buffer), buffer, NULL);
-               printf("  DRIVER_VERSION = %s\n", buffer);
+               printf("      DRIVER_VERSION = %s\n", buffer);
                clGetDeviceInfo(devices[j], CL_DEVICE_MAX_COMPUTE_UNITS, sizeof(buf_uint), &buf_uint, NULL);
-               printf("  DEVICE_MAX_COMPUTE_UNITS = %u\n", (unsigned int)buf_uint);
+               printf("      DEVICE_MAX_COMPUTE_UNITS = %u\n", (unsigned int)buf_uint);
                clGetDeviceInfo(devices[j], CL_DEVICE_MAX_CLOCK_FREQUENCY, sizeof(buf_uint), &buf_uint, NULL);
-               printf("  DEVICE_MAX_CLOCK_FREQUENCY = %u\n", (unsigned int)buf_uint);
+               printf("      DEVICE_MAX_CLOCK_FREQUENCY = %u\n", (unsigned int)buf_uint);
                clGetDeviceInfo(devices[j], CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(buf_ulong), &buf_ulong, NULL);
-               printf("  DEVICE_GLOBAL_MEM_SIZE = %llu\n", (unsigned long long)buf_ulong);
+               printf("      DEVICE_GLOBAL_MEM_SIZE = %llu\n", (unsigned long long)buf_ulong);
           }
+          printf("\n");
      }
 }
 
+// Информация за конкретно устройствато
+void PrintDeviceInfo(cl_device_id device) {
+     char buffer[10240];
+
+     cl_uint buf_uint;
+     cl_ulong buf_ulong;
+     printf("Selecting device for execution: \n");
+     clGetDeviceInfo(device, CL_DEVICE_NAME, sizeof(buffer), buffer, NULL);
+     printf("  DEVICE_NAME = %s\n", buffer);
+     clGetDeviceInfo(device, CL_DEVICE_VENDOR, sizeof(buffer), buffer, NULL);
+     printf("  DEVICE_VENDOR = %s\n", buffer);
+     clGetDeviceInfo(device, CL_DEVICE_VERSION, sizeof(buffer), buffer, NULL);
+     printf("  DEVICE_VERSION = %s\n", buffer);
+     clGetDeviceInfo(device, CL_DRIVER_VERSION, sizeof(buffer), buffer, NULL);
+     printf("  DRIVER_VERSION = %s\n", buffer);
+     clGetDeviceInfo(device, CL_DEVICE_MAX_COMPUTE_UNITS, sizeof(buf_uint), &buf_uint, NULL);
+     printf("  DEVICE_MAX_COMPUTE_UNITS = %u\n", (unsigned int)buf_uint);
+     clGetDeviceInfo(device, CL_DEVICE_MAX_CLOCK_FREQUENCY, sizeof(buf_uint), &buf_uint, NULL);
+     printf("  DEVICE_MAX_CLOCK_FREQUENCY = %u\n", (unsigned int)buf_uint);
+     clGetDeviceInfo(device, CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(buf_ulong), &buf_ulong, NULL);
+     printf("  DEVICE_GLOBAL_MEM_SIZE = %llu\n", (unsigned long long)buf_ulong);
+}
+
 void ChangeColorPPM(PPMImage *img) {
+     struct timeval tval_before, tval_after, tval_result;
      // Входни данни за устройството
      cl_mem device_pixel_data;
 
@@ -253,16 +282,21 @@ void ChangeColorPPM(PPMImage *img) {
 
      // Извличане на наличните устройства в devices
      err = clGetDeviceIDs(platforms[1], CL_DEVICE_TYPE_GPU, 100, devices, &num_devices_returned);
+
+     // Задаване на конкретно устройсто за изпълнител
+     cl_device_id target_device = devices[0];
+     PrintDeviceInfo(target_device);
      
      // Създаване на контекст от първото устройство в devices
-     context = clCreateContext(0, 1, &devices[0], NULL, NULL, &err);
+     context = clCreateContext(0, 1, &target_device, NULL, NULL, &err);
      
      // Създаване на опашки 
-     queue = clCreateCommandQueue(context, devices[0], 0, &err);
+     queue = clCreateCommandQueue(context, target_device, 0, &err);
      
      // Четене на kernel функцията от външен файл
      char *program_buffer = ReadKernelProgram();
 
+     gettimeofday(&tval_before, NULL);
      // Създаване на програма на базата на прочетената kernel функция
      program = clCreateProgramWithSource(context, 1, (const char **) & program_buffer, NULL, &err);
      
@@ -270,12 +304,15 @@ void ChangeColorPPM(PPMImage *img) {
      err = clBuildProgram(program, 0, NULL, NULL, NULL, NULL);
      if (err) {
           char log[10240] = "";
-          err = clGetProgramBuildInfo(program, devices[0], CL_PROGRAM_BUILD_LOG, sizeof(log), log, NULL);
+          err = clGetProgramBuildInfo(program, target_device, CL_PROGRAM_BUILD_LOG, sizeof(log), log, NULL);
           printf("Program build log:\n%s\n", log);
      }
-     
+
      // Създаване на изчисляващата kernel функция в програмата, която ще се изпълни
      kernel = clCreateKernel(program, "grayscale", &err);
+     gettimeofday(&tval_after, NULL);
+     timersub(&tval_after, &tval_before, &tval_result);
+     printf("%ld.%06ld     секунди за създаване на kernel функция\n", (long int)tval_result.tv_sec, (long int)tval_result.tv_usec);
      
      // Създаване на входните и изходните масиви в устройството за изчисленията
      device_pixel_data = clCreateBuffer(context, CL_MEM_READ_ONLY, bytes, NULL, NULL);
@@ -289,35 +326,65 @@ void ChangeColorPPM(PPMImage *img) {
      err |= clSetKernelArg(kernel, 1, sizeof(cl_mem), &device_result);
      err |= clSetKernelArg(kernel, 2, sizeof(unsigned int), &n);
      
+     gettimeofday(&tval_before, NULL);
      // Изпълнение на kernel функцията върху входните данните 
      err = clEnqueueNDRangeKernel(queue, kernel, 1, NULL, &globalSize, &localSize, 0, NULL, NULL);
-     
      // Изчакаване за завършване на обработката на опашката
      clFinish(queue);
+     gettimeofday(&tval_after, NULL);
+     // Измерване колко време отнема изпънението на kernel функцията
+     timersub(&tval_after, &tval_before, &tval_result);
+     printf("%ld.%06ld   секунди за изпълнението на kernel функцията\n", (long int)tval_result.tv_sec, (long int)tval_result.tv_usec);
      
+     gettimeofday(&tval_before, NULL);
      // Четене на резултата от устройството
      clEnqueueReadBuffer(queue, device_result, CL_TRUE, 0, bytes, host_result, 0, NULL, NULL );
+     gettimeofday(&tval_after, NULL);
+     timersub(&tval_after, &tval_before, &tval_result);
+     printf("%ld.%06ld   секунди за четене на резултата от устройството\n", (long int)tval_result.tv_sec, (long int)tval_result.tv_usec);
      
+     gettimeofday(&tval_before, NULL);
      int i;
      for (i = 0; i < n; i++)
           img->data[i] = host_result[i];
+     gettimeofday(&tval_after, NULL);
+     timersub(&tval_after, &tval_before, &tval_result);
+     printf("%ld.%06ld   секунди за копиране на данните обратно в масива с пикселите\n", (long int)tval_result.tv_sec, (long int)tval_result.tv_usec);
+     
  
-    // Освобождаване на OpenCL resources
-    clReleaseMemObject(device_pixel_data);
-    clReleaseMemObject(device_result);
-    clReleaseProgram(program);
-    clReleaseKernel(kernel);
-    clReleaseCommandQueue(queue);
-    clReleaseContext(context);
- 
-    // Освобождаване на хост ресурси
-    free(host_result);
+     // Освобождаване на OpenCL resources
+     clReleaseMemObject(device_pixel_data);
+     clReleaseMemObject(device_result);
+     clReleaseProgram(program);
+     clReleaseKernel(kernel);
+     clReleaseCommandQueue(queue);
+     clReleaseContext(context);
+
+     // Освобождаване на хост ресурси
+     free(host_result);
 }
 
 int main() {
      PPMImage *image;
+     struct timeval tval_before, tval_after, tval_result;
+
+     gettimeofday(&tval_before, NULL);
      image = ReadPPM("image.ppm");
+     gettimeofday(&tval_after, NULL);
+     timersub(&tval_after, &tval_before, &tval_result);
+     printf("%ld.%06ld     секунди за четене на данните от изображението\n", (long int)tval_result.tv_sec, (long int)tval_result.tv_usec);
+
+     gettimeofday(&tval_before, NULL);
      ChangeColorPPM(image);
+     gettimeofday(&tval_after, NULL);
+     timersub(&tval_after, &tval_before, &tval_result);
+     printf("%ld.%06ld     секунди за обработка на данните от изображението\n", (long int)tval_result.tv_sec, (long int)tval_result.tv_usec);
+
+
+     gettimeofday(&tval_before, NULL);
      WritePPM("grayscale_opencl_result.ppm", image);
+     gettimeofday(&tval_after, NULL);
+     timersub(&tval_after, &tval_before, &tval_result);
+     printf("%ld.%06ld     секунди за запис на данните в изображението\n", (long int)tval_result.tv_sec, (long int)tval_result.tv_usec);
 }
 

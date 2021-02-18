@@ -203,7 +203,8 @@ int main(void) {
      ChangeColorPPM(image);
      gettimeofday(&tval_after, NULL);
      timersub(&tval_after, &tval_before, &tval_result);
-     printf("%ld.%06ld     секунди за обработка на данните от изображението\n", (long int)tval_result.tv_sec, (long int)tval_result.tv_usec);
+     printf("  --------\n");
+     printf("  %ld.%06ld   секунди за обработка на данните от изображението\n", (long int)tval_result.tv_sec, (long int)tval_result.tv_usec);
 
      gettimeofday(&tval_before, NULL);
      WritePPM("grayscale_cuda_result.ppm", image);
