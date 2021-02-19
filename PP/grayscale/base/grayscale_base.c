@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/time.h>
 
 typedef struct {
      unsigned char red, green, blue;
@@ -15,7 +16,7 @@ typedef struct {
 #define CREATOR "ParallelProgrammer"
 #define RGB_COMPONENT_COLOR 255
 
-static PPMImage *readPPM(const char *filename) {
+static PPMImage *ReadPPM(const char *filename) {
      char buff[16];
      PPMImage *img;
      FILE *fp;
@@ -91,7 +92,7 @@ static PPMImage *readPPM(const char *filename) {
      fclose(fp);
      return img;
 }
-void writePPM(const char *filename, PPMImage *img) {
+void WritePPM(const char *filename, PPMImage *img) {
      FILE *fp;
      // отваряне на файл в режим за писане
      fp = fopen(filename, "wb");
@@ -117,7 +118,7 @@ void writePPM(const char *filename, PPMImage *img) {
      fclose(fp);
 }
 
-void changeColorPPM(PPMImage *img) {
+void ChangeColorPPM(PPMImage *img) {
      int i;
      if (img) {
           int r, g, b;
@@ -136,7 +137,24 @@ void changeColorPPM(PPMImage *img) {
 
 int main() {
      PPMImage *image;
-     image = readPPM("image.ppm");
-     changeColorPPM(image);
-     writePPM("grayscale_base_result.ppm", image);
+     struct timeval tval_before, tval_after, tval_result;
+
+     gettimeofday(&tval_before, NULL);
+     image = ReadPPM("image.ppm");
+     gettimeofday(&tval_after, NULL);
+     timersub(&tval_after, &tval_before, &tval_result);
+     printf("%ld.%06ld     секунди за четене на данните от изображението\n", (long int)tval_result.tv_sec, (long int)tval_result.tv_usec);
+
+     gettimeofday(&tval_before, NULL);
+     ChangeColorPPM(image);
+     gettimeofday(&tval_after, NULL);
+     timersub(&tval_after, &tval_before, &tval_result);
+     printf("%ld.%06ld     секунди за обработка на данните от изображението\n", (long int)tval_result.tv_sec, (long int)tval_result.tv_usec);
+
+
+     gettimeofday(&tval_before, NULL);
+     WritePPM("grayscale_base_result.ppm", image);
+     gettimeofday(&tval_after, NULL);
+     timersub(&tval_after, &tval_before, &tval_result);
+     printf("%ld.%06ld     секунди за запис на данните в изображението\n", (long int)tval_result.tv_sec, (long int)tval_result.tv_usec);
 }
