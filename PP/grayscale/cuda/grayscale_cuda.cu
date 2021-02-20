@@ -164,7 +164,7 @@ void ChangeColorPPM(PPMImage *img) {
      // Измерване колко време отнема изпънението на kernel функцията
      timersub(&tval_after, &tval_before, &tval_result);
      printf("  %ld.%06ld   секунди за изпълнението на kernel функцията\n", (long int)tval_result.tv_sec, (long int)tval_result.tv_usec);
-     //printf("error: %s\n", cudaGetErrorString(cudaGetLastError()));
+     // printf("error: %s\n", cudaGetErrorString(cudaGetLastError()));
 
      gettimeofday(&tval_before, NULL);
      cudaMemcpy(y, d_y, N*sizeof(PPMPixel), cudaMemcpyDeviceToHost);
@@ -172,7 +172,7 @@ void ChangeColorPPM(PPMImage *img) {
      // Измерване колко време отнема копирането на данните в хоста
      timersub(&tval_after, &tval_before, &tval_result);
      printf("  %ld.%06ld   секунди за копиране на данните обратно в хоста\n", (long int)tval_result.tv_sec, (long int)tval_result.tv_usec);
-     //printf("error: %s\n", cudaGetErrorString(cudaGetLastError()));
+     // printf("error: %s\n", cudaGetErrorString(cudaGetLastError()));
 
      gettimeofday(&tval_before, NULL);
      for (int i = 0; i < N; i++) {

@@ -17,6 +17,22 @@ typedef struct {
 #define RGB_COMPONENT_COLOR 255
 
 static PPMImage *ReadPPM(const char *filename) {
+     // Формат на PPM P6 изображение:
+     // P6
+     // 3 2
+     // 255
+     // # The part above is the header
+     // # "P3" means this is a RGB color image in ASCII
+     // # "3 2" is the width and height of the image in pixels
+     // # "255" is the maximum value for each color
+     // # The part below is image data: RGB triplets
+     // 255   0   0  \ # red
+     // 0    255  0  \ # green
+     // 0     0  255 \ # blue
+     // 255  255  0  \ # yellow
+     // 255  255 255 \ # white
+     //  0    0   0  \ # black
+
      char buff[16];
      PPMImage *img;
      FILE *fp;
