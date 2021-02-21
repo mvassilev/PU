@@ -1,11 +1,12 @@
 // gcc -x c -g -mavx grayscale_vectorization.c -o grayscale_vectorization
-// https://stackoverflow.com/questions/55892071/how-to-do-a-black-and-white-picture-of-a-ppm-file-in-c/55892441#55892441
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <immintrin.h>
 #include <sys/time.h>
 
+// Структурата е трансформирана така, че лесно да се работи със SIMD функции
+// SIMD функциите, които се използват, работят с параметър - указател към масив от стойности
 typedef struct {
      int x, y;
      float *red;
@@ -135,7 +136,10 @@ void WritePPM(const char *filename, PPMImage *img) {
 void ChangeColorPPM(PPMImage *img) {
      int i;
      if (img) {
-           const __m128 f = _mm_set1_ps(1.0);
+          // 128 битова променлива за 4 32-битови float променливи
+          const __m128 f = _mm_set1_ps(1.0);
+
+          // 128 битови променливи за 4 32-битови float стойности
           __m128 l, r, g, b;
           for (i = 0; i < img->x * img->y; i += 4) {
                r = _mm_loadu_ps(&img->red[i]);
@@ -175,18 +179,18 @@ int main() {
      image = ReadPPM("image.ppm");
      gettimeofday(&tval_after, NULL);
      timersub(&tval_after, &tval_before, &tval_result);
-     printf("%ld.%06ld     секунди за четене на данните от изображението\n", (long int)tval_result.tv_sec, (long int)tval_result.tv_usec);
+     printf("%ld.%06ld секунди за четене на данните от изображението\n", (long int)tval_result.tv_sec, (long int)tval_result.tv_usec);
 
      gettimeofday(&tval_before, NULL);
      ChangeColorPPM(image);
      gettimeofday(&tval_after, NULL);
      timersub(&tval_after, &tval_before, &tval_result);
-     printf("%ld.%06ld     секунди за обработка на данните от изображението\n", (long int)tval_result.tv_sec, (long int)tval_result.tv_usec);
+     printf("%ld.%06ld секунди за обработка на данните от изображението\n", (long int)tval_result.tv_sec, (long int)tval_result.tv_usec);
 
 
      gettimeofday(&tval_before, NULL);
      WritePPM("grayscale_vectorized_result.ppm", image);
      gettimeofday(&tval_after, NULL);
      timersub(&tval_after, &tval_before, &tval_result);
-     printf("%ld.%06ld     секунди за запис на данните в изображението\n", (long int)tval_result.tv_sec, (long int)tval_result.tv_usec);
+     printf("%ld.%06ld секунди за запис на данните в изображението\n", (long int)tval_result.tv_sec, (long int)tval_result.tv_usec);
 }

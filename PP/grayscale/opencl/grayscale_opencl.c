@@ -26,10 +26,10 @@
     exit(1); /* abort(); */                                                     \
   } while (0)
 
-#define CL_CHECK_ERR(_expr)							\
-  ({										\
-     cl_int _err = CL_INVALID_VALUE;						\
-     typeof(_expr) _ret = _expr;						\
+#define CL_CHECK_ERR(_expr)                                                     \
+  ({	                                                                           \
+     cl_int _err = CL_INVALID_VALUE;                                            \
+     typeof(_expr) _ret = _expr;                                                \
      if (_err != CL_SUCCESS) {                                                  \
        fprintf(stderr, "OpenCL Error: '%s' returned %d!\n", #_expr, (int)_err); \
        exit(1); /* abort(); */                                                  \
@@ -227,47 +227,35 @@ void PrintDeviceInfo(cl_device_id device) {
 
 void ChangeColorPPM(PPMImage *img) {
      struct timeval tval_before, tval_after, tval_result;
-     // Входни данни за устройството
-     cl_mem device_pixel_data;
-
-     // Изходни данни от устройството
-     cl_mem device_result;
-
-     // Брой на платформите
-     cl_uint platforms_n = 0;
-
-     // Списък на наличните платформи
-     cl_platform_id platforms[100];
-     clGetPlatformIDs(100, platforms, &platforms_n);
-
-     // Извод на наличните платформи и устройства
-     PrintSystemInfo(platforms, platforms_n);
-
-     // Списък на наличните устройства
-     cl_device_id devices[100];
-     cl_context context;
-
-     // Опашката на централния процесор
-     cl_command_queue cpu_queue;
-
-     // Опашката на графичния ускорител
-     cl_command_queue queue;
-
-     cl_program program;
-     cl_kernel kernel;
 
      // Размер на изображението
      unsigned int n = img->x * img->y;
+     
+     // Брой на OpenCL платформите
+     cl_uint platforms_n = 0;
 
-     // Определяне на размера на паметта
-     size_t bytes = n*sizeof(PPMPixel);
+     // Масив на наличните платформи
+     cl_platform_id platforms[100];
+     clGetPlatformIDs(100, platforms, &platforms_n);
 
-     // Резултатен вектор
-     PPMPixel *host_result;
+     // Отпечатване на наличните платформи и устройства на екрана
+     // В зависимост какво е налично в системата се модифицира clGetDeviceIDs извикването
+     PrintSystemInfo(platforms, platforms_n);
 
-     // Заделяне на памет в хоста
-     host_result = (PPMPixel*)malloc(bytes);
+     // Масив на наличните устройства в избрана платформа
+     cl_device_id devices[100];
+
+     // Контекст, чрез който ще се извърши изпълнението
+     cl_context context;
+
+     // Опашката за изпънителят (в общия случай графичен ускорител или процесор)
+     cl_command_queue queue;
+
+     // Декларации за OpenCL програма и kernel функция
+     cl_program program;
+     cl_kernel kernel;
  
+     // Декларации за брой локални групи и размер на локална група
      size_t globalSize, localSize;
      cl_int err;
      
@@ -280,17 +268,19 @@ void ChangeColorPPM(PPMImage *img) {
      // Брой налични устройства
      cl_uint num_devices_returned;
 
-     // Извличане на наличните устройства в devices
-     err = clGetDeviceIDs(platforms[1], CL_DEVICE_TYPE_GPU, 100, devices, &num_devices_returned);
+     // Извличане на наличните устройства от зададената платформа в devices
+     err = clGetDeviceIDs(platforms[0], CL_DEVICE_TYPE_GPU, 100, devices, &num_devices_returned);
 
      // Задаване на конкретно устройсто за изпълнител
      cl_device_id target_device = devices[0];
+
+     // Отпечатване на данните за избраното устройство за изпълнител
      PrintDeviceInfo(target_device);
      
-     // Създаване на контекст от първото устройство в devices
+     // Създаване на контекст от избраното устройство в devices
      context = clCreateContext(0, 1, &target_device, NULL, NULL, &err);
      
-     // Създаване на опашки 
+     // Създаване на опашка за изпълнение
      queue = clCreateCommandQueue(context, target_device, 0, &err);
      
      // Четене на kernel функцията от външен файл
@@ -300,7 +290,7 @@ void ChangeColorPPM(PPMImage *img) {
      // Създаване на програма на базата на прочетената kernel функция
      program = clCreateProgramWithSource(context, 1, (const char **) & program_buffer, NULL, &err);
      
-     // Компилиране на kernel функцията
+     // Компилиране на kernel функцията според типа на устройството
      err = clBuildProgram(program, 0, NULL, NULL, NULL, NULL);
      if (err) {
           char log[10240] = "";
@@ -313,12 +303,27 @@ void ChangeColorPPM(PPMImage *img) {
      gettimeofday(&tval_after, NULL);
      timersub(&tval_after, &tval_before, &tval_result);
      printf("%ld.%06ld     секунди за създаване на kernel функция\n", (long int)tval_result.tv_sec, (long int)tval_result.tv_usec);
-     
-     // Създаване на входните и изходните масиви в устройството за изчисленията
+
+     // Определяне на размера на паметта
+     size_t bytes = n*sizeof(PPMPixel);
+
+     // Променлива, която ще съдържа резултата от изпълнението на kernel функцията
+     PPMPixel *host_result;
+
+     // Входни данни за устройството
+     cl_mem device_pixel_data;
+
+     // Трансформирани данни от устройството
+     cl_mem device_result;
+
+     // Заделяне на памет за резултата в хоста
+     host_result = (PPMPixel*)malloc(bytes);
+
+     // Заделяне на памет за съответните входни и трансформирани данни използвани в устройството
      device_pixel_data = clCreateBuffer(context, CL_MEM_READ_ONLY, bytes, NULL, NULL);
      device_result = clCreateBuffer(context, CL_MEM_WRITE_ONLY, bytes, NULL, NULL);
      
-     // Запис на данните във входния масив в изчисляващото устройство
+     // Копиране на входните данни от хоста във входния масив в изчисляващото устройство
      err = clEnqueueWriteBuffer(queue, device_pixel_data, CL_TRUE, 0, bytes, img->data, 0, NULL, NULL);
 
      // Задаване на аргументите на kernel функцията
@@ -327,31 +332,34 @@ void ChangeColorPPM(PPMImage *img) {
      err |= clSetKernelArg(kernel, 2, sizeof(unsigned int), &n);
      
      gettimeofday(&tval_before, NULL);
+
      // Изпълнение на kernel функцията върху входните данните 
      err = clEnqueueNDRangeKernel(queue, kernel, 1, NULL, &globalSize, &localSize, 0, NULL, NULL);
      // Изчакаване за завършване на обработката на опашката
      clFinish(queue);
+     
      gettimeofday(&tval_after, NULL);
-     // Измерване колко време отнема изпънението на kernel функцията
      timersub(&tval_after, &tval_before, &tval_result);
      printf("%ld.%06ld   секунди за изпълнението на kernel функцията\n", (long int)tval_result.tv_sec, (long int)tval_result.tv_usec);
      
      gettimeofday(&tval_before, NULL);
+
      // Четене на резултата от устройството
      clEnqueueReadBuffer(queue, device_result, CL_TRUE, 0, bytes, host_result, 0, NULL, NULL );
+
      gettimeofday(&tval_after, NULL);
      timersub(&tval_after, &tval_before, &tval_result);
      printf("%ld.%06ld   секунди за четене на резултата от устройството\n", (long int)tval_result.tv_sec, (long int)tval_result.tv_usec);
      
      gettimeofday(&tval_before, NULL);
-     int i;
-     for (i = 0; i < n; i++)
+
+     for (int i = 0; i < n; i++)
           img->data[i] = host_result[i];
+
      gettimeofday(&tval_after, NULL);
      timersub(&tval_after, &tval_before, &tval_result);
      printf("%ld.%06ld   секунди за копиране на данните обратно в масива с пикселите\n", (long int)tval_result.tv_sec, (long int)tval_result.tv_usec);
      
- 
      // Освобождаване на OpenCL resources
      clReleaseMemObject(device_pixel_data);
      clReleaseMemObject(device_result);

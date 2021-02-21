@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/time.h>
+#include <omp.h>
 
 typedef struct {
      unsigned char red, green, blue;
@@ -120,16 +121,18 @@ void WritePPM(const char *filename, PPMImage *img) {
 }
 
 void ChangeColorPPM(PPMImage *img) {
-     int i;
+     // Искане на 4 нишки от системата
+     omp_set_num_threads(4);
+
      if (img) {
-          int r, g, b;
-          // стойност на намаляване на наситеността (saturation) - стойност 1 за 100%
-          int f = 1;
-          double l;
+          // Задаване на паралелен блок за for цикъл като размера на блоковете,
+          // които ще бъдат създадени се определят по време на компилация
           #pragma omp parallel for schedule(static)
-          for (i = 0; i < img->x * img->y; i++) {
-               l = 0.3 * img->data[i].red + 0.6 * img->data[i].green + 0.1 * img->data[i].blue;
-               // намаляване на наситеността
+          for (int i = 0; i < img->x * img->y; i++) {
+               // Внасяне на локалните променливи вътре в паралелния блок за да станат частни за отделните нишки
+               int r, g, b, f = 1;
+               double l = 0.3 * img->data[i].red + 0.6 * img->data[i].green + 0.1 * img->data[i].blue;
+
                img->data[i].red = img->data[i].red + f * (l - img->data[i].red);
                img->data[i].green = img->data[i].green + f * (l - img->data[i].green);
                img->data[i].blue = img->data[i].blue + f * (l - img->data[i].blue);
@@ -145,18 +148,17 @@ int main() {
      image = ReadPPM("image.ppm");
      gettimeofday(&tval_after, NULL);
      timersub(&tval_after, &tval_before, &tval_result);
-     printf("%ld.%06ld     секунди за четене на данните от изображението\n", (long int)tval_result.tv_sec, (long int)tval_result.tv_usec);
+     printf("%ld.%06ld секунди за четене на данните от изображението\n", (long int)tval_result.tv_sec, (long int)tval_result.tv_usec);
 
      gettimeofday(&tval_before, NULL);
      ChangeColorPPM(image);
      gettimeofday(&tval_after, NULL);
      timersub(&tval_after, &tval_before, &tval_result);
-     printf("%ld.%06ld     секунди за обработка на данните от изображението\n", (long int)tval_result.tv_sec, (long int)tval_result.tv_usec);
-
+     printf("%ld.%06ld секунди за обработка на данните от изображението\n", (long int)tval_result.tv_sec, (long int)tval_result.tv_usec);
 
      gettimeofday(&tval_before, NULL);
      WritePPM("grayscale_openmp_result.ppm", image);
      gettimeofday(&tval_after, NULL);
      timersub(&tval_after, &tval_before, &tval_result);
-     printf("%ld.%06ld     секунди за запис на данните в изображението\n", (long int)tval_result.tv_sec, (long int)tval_result.tv_usec);
+     printf("%ld.%06ld секунди за запис на данните в изображението\n", (long int)tval_result.tv_sec, (long int)tval_result.tv_usec);
 }
