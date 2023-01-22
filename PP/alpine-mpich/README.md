@@ -6,32 +6,16 @@ Provide solution for MPI Cluster Automation with Docker containers using either 
 
 ----
 
-        Best Paper Award at IEEE CCWC 2017
-
-**N. Nguyen** and **D. Bein**, "[Distributed MPI cluster with Docker Swarm mode](http://ieeexplore.ieee.org/document/7868429/)," 2017 IEEE 7th Annual Computing and Communication Workshop and Conference (CCWC), Las Vegas, NV, USA, 2017, pp. 1-7.
-
-----
-
 Image usage instruction: 
 [https://hub.docker.com/r/mvassilev/alpine-mpich](https://hub.docker.com/r/mvassilev/alpine-mpich)
 
 
 Distributed MPI cluster setup instruction: [https://github.com/mvassilev/alpine-mpich/tree/master/cluster](https://github.com/mvassilev/alpine-mpich/tree/master/cluster)  
-* **[Single Host Orchestration](https://github.com/mvassilev/alpine-mpich/wiki/Single-Host-Orchestration)**
-* **[Multi Host Orchestration](https://github.com/mvassilev/alpine-mpich/wiki/Multi-Host-Orchestration)**
-
+* **[Single Host Orchestration](https://github.com/mvassilev/PU/wiki/Single-Host-Orchestration)**
+* **[Multi Host Orchestration](https://github.com/mvassilev/PU/wiki/Multi-Host-Orchestration)**
 
 
 ----
-
-Automated build with Travis CI and push to Docker Hub [https://hub.docker.com/r/mvassilev/alpine-mpich](https://hub.docker.com/r/mvassilev/alpine-mpich/)
-
-**TODO Feb 23, 2019**: Current failed checks are due to new style rules for shell scripts using *shellcheck* tool. All shell scripts need to be updated to pass the build. Most of shellcheck's recommendations are legit. 
-
-[![Build Status](https://travis-ci.org/mvassilev/alpine-mpich.svg?branch=master)](https://travis-ci.org/mvassilev/alpine-mpich)
-
-[![Docker Hub](http://dockeri.co/image/mvassilev/alpine-mpich)](https://hub.docker.com/r/mvassilev/alpine-mpich)
-
 
 `base image` ([Dockerfile](https://github.com/mvassilev/alpine-mpich/blob/master/Dockerfile)) : contains MPICH and essential build tools. Intended to be used as development environment for developing MPI programs.
 
@@ -53,7 +37,7 @@ $ git clone https://github.com/mvassilev/alpine-mpich
 
 $ cd alpine-mpich
 
-$ docker build -t mvassilev/alpine-mpich base/
+$ docker build -t mvassilev/alpine-mpich:base base/
 
 $ docker build -t mvassilev/alpine-mpich:onbuild onbuild/
 ```
@@ -100,4 +84,4 @@ Use this GitHub repository [issues](https://github.com/mvassilev/alpine-mpich/is
 Suggestions and pull requests are awesome.
 
 # License MIT
-Copyright © Nikyle Nguyen
+Spacial thanks to [Nikyle Nguyen](https://github.com/NLKNguyen/alpine-mpich)

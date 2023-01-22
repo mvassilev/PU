@@ -1,4 +1,4 @@
-FROM mvassilev/alpine-mpich:latest
+FROM mvassilev/alpine-mpich:base
 
 USER root
 
@@ -30,6 +30,7 @@ ENV HYDRA_HOST_FILE /etc/opt/hosts
 RUN echo "export HYDRA_HOST_FILE=${HYDRA_HOST_FILE}" >> /etc/profile
 
 RUN touch ${HYDRA_HOST_FILE}
+
 RUN chown ${USER}:${USER} ${HYDRA_HOST_FILE}
 
 # Auto go to default working directory when user ssh login 
@@ -76,3 +77,9 @@ ONBUILD RUN chmod -R 600 ${SSHDIR}/* \
 
 # Switch back to default user when continue the build process
 ONBUILD USER ${USER}
+
+# To push onbuild tag
+# mvassilev@mBook onbuild (master) $ docker build --no-cache .
+# mvassilev@mBook onbuild (master) $ docker image list
+# mvassilev@mBook onbuild (master) $ docker tag dd79bf39e981 mvassilev/alpine-mpich:onbuild
+# mvassilev@mBook onbuild (master) $ docker push mvassilev/alpine-mpich:onbuild

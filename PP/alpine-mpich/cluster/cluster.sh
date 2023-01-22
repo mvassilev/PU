@@ -129,9 +129,9 @@ build_and_push_image ()
 {
     printf "\\n\\n===> BUILD IMAGE"
     printf "\\n%s\\n" "$HEADER"
-    echo "$ docker build -t \"$REGISTRY_ADDR:$REGISTRY_PORT/$IMAGE_NAME\" ."
+    echo "$ docker build --no-cache --progress=plain -t \"$REGISTRY_ADDR:$REGISTRY_PORT/$IMAGE_NAME\" ."
     printf "\\n"
-    docker build -t "$REGISTRY_ADDR:$REGISTRY_PORT/$IMAGE_NAME" .
+    docker build --no-cache --progress=plain -t "$REGISTRY_ADDR:$REGISTRY_PORT/$IMAGE_NAME" .
 
     printf "\\n"
 
