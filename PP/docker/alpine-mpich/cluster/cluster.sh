@@ -65,6 +65,7 @@ usage ()
     echo ""
     echo "      exec: execute shell command at the MPI master node"
     echo "          ./cluster.sh exec [SHELL COMMAND]"
+    echo "          to run the default sample: ./cluster.sh exec mpiexec -np SIZE ./mpi_hello_world"
     echo ""
     echo "      down: shutdown cluster"
     echo "          ./cluster.sh down"
@@ -129,9 +130,11 @@ build_and_push_image ()
 {
     printf "\\n\\n===> BUILD IMAGE"
     printf "\\n%s\\n" "$HEADER"
-    echo "$ docker build --no-cache --progress=plain -t \"$REGISTRY_ADDR:$REGISTRY_PORT/$IMAGE_NAME\" ."
+    echo "$ docker build -t \"$REGISTRY_ADDR:$REGISTRY_PORT/$IMAGE_NAME\" ."
     printf "\\n"
-    docker build --no-cache --progress=plain -t "$REGISTRY_ADDR:$REGISTRY_PORT/$IMAGE_NAME" .
+    # add --no-cache for forcing not using the cache
+    # add --progress=plain to output Dockerfile debug messages via RUN echo $(ls -la)
+    docker build -t "$REGISTRY_ADDR:$REGISTRY_PORT/$IMAGE_NAME" .
 
     printf "\\n"
 
@@ -250,6 +253,9 @@ show_instruction ()
     echo ""
     echo "     Example: "
     echo "     $ ./cluster.sh exec mpirun hostname"
+    echo ""
+    echo "To run the sample program type the shell command at master node:"
+    echo "     ./cluster.sh exec mpiexec -np SIZE ./mpi_hello_world"
     echo ""
 }
 
