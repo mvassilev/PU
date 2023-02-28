@@ -255,7 +255,8 @@ show_instruction ()
     echo "     $ ./cluster.sh exec mpirun hostname"
     echo ""
     echo "To run the sample program type the shell command at master node:"
-    echo "     ./cluster.sh exec mpiexec -np $SIZE ./nbodypipe"
+    echo "     ./cluster.sh exec mpiexec -np 4 ./nbodypipe 50 35 - for 4 nodes, 50 particles for 35 timesteps"
+    echo "     ./cluster.sh exec mpiexec -np $SIZE ./nbodypipe 50 35"
     echo ""
 }
 

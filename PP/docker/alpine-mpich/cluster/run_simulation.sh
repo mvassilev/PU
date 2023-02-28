@@ -1,5 +1,6 @@
 #!/bin/bash
-#Workflow script for particle sim
+# Workflow script for particle sim
+# sh run_simulation.sh 50 35 for 50 particles for 35 timesteps
 #cd $DATA
 
 #execute code
