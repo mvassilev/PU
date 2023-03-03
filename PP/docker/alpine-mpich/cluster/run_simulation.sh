@@ -1,6 +1,6 @@
 #!/bin/bash
 # Workflow script for particle sim
-# sh run_simulation.sh 50 35 4 for 50 particles for 35 timesteps for 4 nodes
+# sh run_simulation.sh 50 35 8 for 50 particles for 35 timesteps for 8 nodes
 #cd $DATA
 
 #execute code
@@ -9,14 +9,14 @@
 
 containers=($(docker ps | awk '{if(NR>1) print $NF}'))
 for ((i = 0; i < ${#containers[@]}; ++i)); do
-  echo "Container: ${containers[$i]}"
-  echo "i: ${i}"
+  echo "Fetching data from container: ${containers[$i]}"
 
   $(docker exec ${containers[$i]} /bin/sh -c "cp timedat.dat /tmp/")
   $(docker exec ${containers[$i]} /bin/sh -c "echo $NAME")
   $(docker cp ${containers[$i]}:/tmp/timedat.dat timedat.${i})
-  echo ================================
 done
+
+echo ================================
 
 plot=""
 i=0;
@@ -40,7 +40,7 @@ do
     set title \"$1 particles at timestep $i\"
     set yrange [0:1]
     set grid
-    set term gif size 320,480
+    set term gif size 640,768
     set output '$i.gif'
     plot " > data_$i.gnu
     j=0
