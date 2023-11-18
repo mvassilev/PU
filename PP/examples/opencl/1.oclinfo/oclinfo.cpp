@@ -3,8 +3,8 @@
    Modified by Robert McGibbon, August 2013
 */
 
-// mac:   g++  -g -framework OpenCL oclinfo.c -o oclinfo
-// linux: gcc -x c -g grayscale_opencl.c -o grayscale_opencl -lOpenCL -lm
+// mac:   g++  -g -framework OpenCL oclinfo.cpp -o oclinfo
+// linux: g++ -g oclinfo.cpp -o oclinfo -lOpenCL -lm
 // clinfo
 
 #ifdef __APPLE__
