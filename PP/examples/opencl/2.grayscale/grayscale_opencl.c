@@ -1,6 +1,7 @@
 // gcc -x c -g -framework OpenCL grayscale_opencl.c -o grayscale_opencl
 // gcc -x c -g grayscale_opencl.c -o grayscale_opencl -lOpenCL -lm
 // clinfo
+// shorturl.at/huSW3
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -225,12 +226,9 @@ void PrintDeviceInfo(cl_device_id device) {
      printf("  DEVICE_GLOBAL_MEM_SIZE = %llu\n", (unsigned long long)buf_ulong);
 }
 
-void ChangeColorPPM(PPMImage *img) {
-     struct timeval tval_before, tval_after, tval_result;
+cl_device_id GetDevice() {
+     cl_int err;
 
-     // Размер на изображението
-     unsigned int n = img->x * img->y;
-     
      // Брой на OpenCL платформите
      cl_uint platforms_n = 0;
 
@@ -246,41 +244,40 @@ void ChangeColorPPM(PPMImage *img) {
 
      // Масив на наличните устройства в рамките на избраната платформа
      cl_device_id devices[100];
-
-     // Контекст, чрез който ще се извърши изпълнението
-     cl_context context;
-
-     // Опашката за изпънителят (в общия случай графичен ускорител или процесор)
-     cl_command_queue queue;
-
-     // Декларации за OpenCL програма и kernel функция
-     cl_program program;
-     cl_kernel kernel;
- 
-     // Декларации за брой локални групи и размер на локална група
-     size_t globalSize, localSize;
-     cl_int err;
-     
-     // Размерност на локална група
-     localSize = 64;
-     
-     // Брой локални групи
-     globalSize = ceil(n/(float)localSize)*localSize;
      
      // Брой налични устройства
      cl_uint num_devices_returned;
 
      // Извличане на наличните устройства от зададената платформа в devices
-     err = clGetDeviceIDs(platforms[0], CL_DEVICE_TYPE_GPU, 100, devices, &num_devices_returned);
+     err = clGetDeviceIDs(platforms[0], CL_DEVICE_TYPE_ALL, 100, devices, &num_devices_returned);
 
      // Задаване на конкретно устройсто за изпълнител
      cl_device_id target_device = devices[1];
 
      // Отпечатване на данните за избраното устройство за изпълнител
      PrintDeviceInfo(target_device);
+
+     return target_device;
+}
+
+void ChangeColorPPM(PPMImage *img) {
+     struct timeval tval_before, tval_after, tval_result;
+     cl_int err;
+
+     // Размер на изображението
+     unsigned int n = img->x * img->y;
+
+     // Задаване на конкретно устройсто за изпълнител
+     cl_device_id target_device = GetDevice();
+
+     // Контекст, чрез който ще се извърши изпълнението
+     cl_context context;
      
      // Създаване на контекст от избраното устройство в devices
      context = clCreateContext(0, 1, &target_device, NULL, NULL, &err);
+
+     // Опашката за изпънителят (в общия случай графичен ускорител или процесор)
+     cl_command_queue queue;
      
      // Създаване на опашка за изпълнение
      queue = clCreateCommandQueue(context, target_device, 0, &err);
@@ -292,6 +289,7 @@ void ChangeColorPPM(PPMImage *img) {
      gettimeofday(&tval_before, NULL);
 
      // Създаване на програма на базата на прочетената kernel функция
+     cl_program program;
      program = clCreateProgramWithSource(context, 1, (const char **) & program_buffer, NULL, &err);
      
      // Компилиране на kernel функцията според типа на устройството
@@ -304,7 +302,8 @@ void ChangeColorPPM(PPMImage *img) {
           printf("Program build log:\n%s\n", log);
      }
 
-     // Създаване на изчисляващата kernel функция в програмата, която ще се изпълни
+     // Създаване на kernel обект, който ще капсулира в себе си декларирана програма чрез clCreateProgramWithSource
+     cl_kernel kernel;
      kernel = clCreateKernel(program, "grayscale", &err);
 
      // Засичане на текущото време
@@ -312,19 +311,19 @@ void ChangeColorPPM(PPMImage *img) {
      timersub(&tval_after, &tval_before, &tval_result);
      printf("%ld.%06ld     секунди за създаване на kernel функция\n", (long int)tval_result.tv_sec, (long int)tval_result.tv_usec);
 
-     // Определяне на размера на паметта, която ще е необходима
-     size_t bytes = n*sizeof(PPMPixel);
+     // Определяне на размера на паметта, която ще е необходима за обработката на всички пиксели от изображението
+     size_t bytes = n * sizeof(PPMPixel);
 
-     // Променлива, която ще съдържа резултата от изпълнението на kernel функцията
+     // Променлива масив, която ще съдържа резултата от изпълнението на kernel функцията
      PPMPixel *host_result;
 
-     // Входни данни за устройството
+     // Входни данни за устройството - масива от цветни пиксели, който ще се предаде на устройството за обработка
      cl_mem device_pixel_data;
 
-     // Трансформирани данни от устройството
+     // Трансформирани данни от устройството - масива, който ще съдържа обработените черно-бели пиксели от устройството
      cl_mem device_result;
 
-     // Заделяне на памет за резултата в хоста
+     // Заделяне на памет за копиране на резултата от паметта на устройството в паметта на хоста
      host_result = (PPMPixel*)malloc(bytes);
 
      // Заделяне на памет за съответните входни и трансформирани данни използвани в устройството
@@ -334,11 +333,20 @@ void ChangeColorPPM(PPMImage *img) {
      // Копиране на входните данни от хоста във входния масив в изчисляващото устройство
      err = clEnqueueWriteBuffer(queue, device_pixel_data, CL_TRUE, 0, bytes, img->data, 0, NULL, NULL);
 
-     // Задаване на аргументите на kernel функцията
+     // Задаване на аргументите на kernel функцията, тя съдържа 3 аргумента - масив с цветните пиксели, масив с резултатните пиксели и броя итерации
      err  = clSetKernelArg(kernel, 0, sizeof(cl_mem), &device_pixel_data);
      err |= clSetKernelArg(kernel, 1, sizeof(cl_mem), &device_result);
      err |= clSetKernelArg(kernel, 2, sizeof(unsigned int), &n);
      
+     // Декларации за променливи за размер на ГРИ и размер на локална група
+     size_t globalSize, localSize;
+     
+     // Размерност на локална група
+     localSize = 64;
+     
+     // Броя на всички елементи за обработка, които ще се обработват
+     globalSize = ceil(n/(float)localSize)*localSize;
+
      gettimeofday(&tval_before, NULL);
 
      // Изпълнение на kernel функцията върху входните данните 
